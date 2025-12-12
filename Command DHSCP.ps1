@@ -1,0 +1,1 @@
+Install-WindowsFeature RSAT-DHCP -IncludeManagementTools

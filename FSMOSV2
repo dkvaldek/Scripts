@@ -1,0 +1,95 @@
+# ============================
+# FSMO de FLORESTA e DOMÍNIOS (sem ADWS)
+# - Saída simples na tela
+# - Detalhado em C:\AD-Export\fsmo_forest_roles.csv e fsmo_domain_roles.csv
+# ============================
+
+$exportPath = "C:\AD-Export"
+if (-not (Test-Path $exportPath)) {
+    New-Item -Path $exportPath -ItemType Directory -Force | Out-Null
+}
+
+Write-Host "Coletando FSMO via .NET (sem usar Get-ADForest / Get-ADDomain)..." -ForegroundColor Cyan
+
+########## FSMO DE FLORESTA ##########
+try {
+    $forest = [System.DirectoryServices.ActiveDirectory.Forest]::GetCurrentForest()
+}
+catch {
+    Write-Host "ERRO: não foi possível obter a floresta via .NET. Verifique se o servidor está no domínio." -ForegroundColor Red
+    Write-Host $_
+    return
+}
+
+$fsmoForest = @()
+
+# Schema Master
+$schemaOwner = $forest.SchemaRoleOwner.Name   # ex: DC01.dominio.local
+$fsmoForest += [PSCustomObject]@{
+    Scope      = 'Forest'
+    Role       = 'SchemaMaster'
+    FSMOHolder = $schemaOwner
+    ServerName = ($schemaOwner -split '\.')[0]
+}
+
+# Domain Naming Master
+$namingOwner = $forest.NamingRoleOwner.Name
+$fsmoForest += [PSCustomObject]@{
+    Scope      = 'Forest'
+    Role       = 'DomainNamingMaster'
+    FSMOHolder = $namingOwner
+    ServerName = ($namingOwner -split '\.')[0]
+}
+
+""
+"=== FSMO de FLORESTA ==="
+$fsmoForest | Format-Table Scope,Role,ServerName,FSMOHolder -AutoSize
+
+$fsmoForestFile = Join-Path $exportPath "fsmo_forest_roles.csv"
+$fsmoForest | Export-Csv $fsmoForestFile -NoTypeInformation -Encoding UTF8
+
+########## FSMO DE DOMÍNIO(S) ##########
+
+$fsmoDomain = @()
+
+foreach ($dom in $forest.Domains) {
+    # $dom é System.DirectoryServices.ActiveDirectory.Domain
+    $domainName = $dom.Name
+
+    $pdcOwner  = $dom.PdcRoleOwner.Name
+    $ridOwner  = $dom.RidRoleOwner.Name
+    $infOwner  = $dom.InfrastructureRoleOwner.Name
+
+    $fsmoDomain += [PSCustomObject]@{
+        Domain     = $domainName
+        Role       = 'PDCEmulator'
+        FSMOHolder = $pdcOwner
+        ServerName = ($pdcOwner -split '\.')[0]
+    }
+    $fsmoDomain += [PSCustomObject]@{
+        Domain     = $domainName
+        Role       = 'RIDMaster'
+        FSMOHolder = $ridOwner
+        ServerName = ($ridOwner -split '\.')[0]
+    }
+    $fsmoDomain += [PSCustomObject]@{
+        Domain     = $domainName
+        Role       = 'InfrastructureMaster'
+        FSMOHolder = $infOwner
+        ServerName = ($infOwner -split '\.')[0]
+    }
+}
+
+""
+"=== FSMO de DOMÍNIO ==="
+$fsmoDomain |
+    Sort-Object Domain, Role |
+    Format-Table Domain,Role,ServerName,FSMOHolder -AutoSize
+
+$fsmoDomainFile = Join-Path $exportPath "fsmo_domain_roles.csv"
+$fsmoDomain | Export-Csv $fsmoDomainFile -NoTypeInformation -Encoding UTF8
+
+""
+Write-Host "Arquivos gerados:" -ForegroundColor Cyan
+Write-Host "  - $fsmoForestFile"
+Write-Host "  - $fsmoDomainFile"
