@@ -129,7 +129,6 @@ $resultados |
 $resultados |
     Sort-Object Status, OperatingSystem, Name |
     Export-Csv -NoTypeInformation -Encoding UTF8 -Path $csvPath
-
 Write-Host ""
 Write-Host "Relatório completo exportado para:" -ForegroundColor Green
 Write-Host "  $csvPath"

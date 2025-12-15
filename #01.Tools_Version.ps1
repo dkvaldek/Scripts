@@ -179,3 +179,4 @@ if ($dnsVers.Count -gt 0) {
 } else {
     Write-Host "DNS Manager / DNS Server não encontrados (dnsmgmt.msc/dnsmgmt.dll/dns.exe não localizados em $sys32)." -ForegroundColor DarkYellow
 }
+a
